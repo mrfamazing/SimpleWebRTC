@@ -1,4 +1,5 @@
 node_modules
 *.bundle.js
 socket.io.js
+*.min.js
 latest.js

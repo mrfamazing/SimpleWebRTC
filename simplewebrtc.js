@@ -3,7 +3,6 @@ var WildEmitter = require('wildemitter');
 var webrtcSupport = require('webrtcsupport');
 var attachMediaStream = require('attachmediastream');
 var mockconsole = require('mockconsole');
-var io = require('socket.io-client');
 
 
 function SimpleWebRTC(opts) {
@@ -11,7 +10,22 @@ function SimpleWebRTC(opts) {
     var options = opts || {};
     var config = this.config = {
             url: 'http://signaling.simplewebrtc.com:8888',
-            socketio: {/* 'force new connection':true*/},
+            socket: null,
+            handlers: {
+                message: 'message',
+                connect: 'connect',
+                remove: 'remove',
+                stunservers: 'stunservers',
+                turnservers: 'turnservers',
+            },
+            emitEndpoints: {
+                message: 'message',
+                shareScreen: 'shareScreen',
+                createRoom: 'create',
+                joinRoom: 'join',
+                leaveRoom: 'leave',
+                unshareScreen: 'unshareScreen'
+            },
             debug: false,
             localVideoEl: '',
             remoteVideosEl: '',
@@ -48,11 +62,23 @@ function SimpleWebRTC(opts) {
             return opts.logger || mockconsole;
         }
     }();
-
+    function extend(dst) {
+        for (var i = 1, ii = arguments.length; i < ii; i++) {
+            var obj = arguments[i];
+            var keys = Object.keys(obj);
+            for (var j = 0; j < keys.length; j++) {
+                dst[keys[j]] = obj[keys[j]];
+            }
+        }
+        return dst;
+    }
     // set our config from options
     for (item in options) {
-        this.config[item] = options[item];
+        if (item != 'emitEndpoints' && item != 'handlers')
+            this.config[item] = options[item];
     }
+    extend(this.config.emitEndpoints, options.emitEndpoints);
+    extend(this.config.handlers, options.handlers);
 
     // attach detected support for convenience
     this.capabilities = webrtcSupport;
@@ -61,15 +87,16 @@ function SimpleWebRTC(opts) {
     WildEmitter.call(this);
 
     // our socket.io connection
-    connection = this.connection = io.connect(this.config.url, this.config.socketio);
+    connection = this.connection = this.config.socket;
+    if (!connection) {
+        throw new Error('A existing socket must be used');
+    }
 
-    connection.on('connect', function () {
-        self.emit('connectionReady', connection.socket.sessionid);
-        self.sessionReady = true;
-        self.testReadiness();
-    });
+    self.emit('connectionReady', connection.socket.sessionid);
+    self.sessionReady = true;
+    self.testReadiness();
 
-    connection.on('message', function (message) {
+    connection.on(config.handlers.message, function (message) {
         var peers = self.webrtc.getPeers(message.from, message.roomType);
         var peer;
 
@@ -93,7 +120,7 @@ function SimpleWebRTC(opts) {
         }
     });
 
-    connection.on('remove', function (room) {
+    connection.on(config.handlers.remove, function (room) {
         if (room.id !== self.connection.socket.sessionid) {
             self.webrtc.removePeers(room.id, room.type);
         }
@@ -126,7 +153,7 @@ function SimpleWebRTC(opts) {
     });
 
     this.webrtc.on('message', function (payload) {
-        self.connection.emit('message', payload);
+        self.connection.emit(self.config.emitEndpoints.message, payload);
     });
 
     this.webrtc.on('peerStreamAdded', this.handlePeerStreamAdded.bind(this));
@@ -138,15 +165,15 @@ function SimpleWebRTC(opts) {
         this.webrtc.on('stoppedSpeaking', this.setVolumeForAll.bind(this, 1));
     }
 
-    connection.on('stunservers', function (args) {
+    connection.on(this.config.handlers.stunservers, function (args) {
         // resets/overrides the config
         self.webrtc.config.peerConnectionConfig.iceServers = args;
-        self.emit('stunservers', args);
+        self.emit(this.config.handlers.stunservers, args);
     });
-    connection.on('turnservers', function (args) {
+    connection.on(this.config.handlers.turnservers, function (args) {
         // appends to the config
         self.webrtc.config.peerConnectionConfig.iceServers = self.webrtc.config.peerConnectionConfig.iceServers.concat(args);
-        self.emit('turnservers', args);
+        self.emit(this.config.handlers.turnservers, args);
     });
 
     this.webrtc.on('iceFailed', function (peer) {
@@ -184,7 +211,7 @@ function SimpleWebRTC(opts) {
         }
 
         self.emit('localScreenAdded', el);
-        self.connection.emit('shareScreen');
+        self.connection.emit(self.config.emitEndpoints.shareScreen);
 
         self.webrtc.peers.forEach(function (existingPeer) {
             var peer;
@@ -230,7 +257,7 @@ SimpleWebRTC.prototype = Object.create(WildEmitter.prototype, {
 
 SimpleWebRTC.prototype.leaveRoom = function () {
     if (this.roomName) {
-        this.connection.emit('leave');
+        this.connection.emit(this.config.emitEndpoints.leaveRoom);
         this.webrtc.peers.forEach(function (peer) {
             peer.end();
         });
@@ -242,9 +269,13 @@ SimpleWebRTC.prototype.leaveRoom = function () {
     }
 };
 
+//disconnect will just remove the socket event handlers that were added
 SimpleWebRTC.prototype.disconnect = function () {
-    this.connection.disconnect();
-    delete this.connection;
+    var handlers = this.config.handlers;
+    var keys = Object.keys(handlers);
+    for (var i = 0; i < keys.length; i++) {
+        this.connection.removeAllListeners(handlers[keys[i]]);
+    }
 };
 
 SimpleWebRTC.prototype.handlePeerStreamAdded = function (peer) {
@@ -297,7 +328,7 @@ SimpleWebRTC.prototype.setVolumeForAll = function (volume) {
 SimpleWebRTC.prototype.joinRoom = function (name, cb) {
     var self = this;
     this.roomName = name;
-    this.connection.emit('join', name, function (err, roomDescription) {
+    this.connection.emit(this.config.emitEndpoints.joinRoom, name, function (err, roomDescription) {
         if (err) {
             self.emit('error', err);
         } else {
@@ -385,7 +416,7 @@ SimpleWebRTC.prototype.getLocalScreen = function () {
 };
 
 SimpleWebRTC.prototype.stopScreenShare = function () {
-    this.connection.emit('unshareScreen');
+    this.connection.emit(this.config.emitEndpoints.unshareScreen);
     var videoEl = document.getElementById('localScreen');
     var container = this.getRemoteVideoContainer();
     var stream = this.getLocalScreen();
@@ -415,9 +446,9 @@ SimpleWebRTC.prototype.testReadiness = function () {
 
 SimpleWebRTC.prototype.createRoom = function (name, cb) {
     if (arguments.length === 2) {
-        this.connection.emit('create', name, cb);
+        this.connection.emit(this.config.emitEndpoints.createRoom, name, cb);
     } else {
-        this.connection.emit('create', name);
+        this.connection.emit(this.config.emitEndpoints.createRoom, name);
     }
 };
 
