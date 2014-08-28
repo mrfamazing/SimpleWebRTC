@@ -68,7 +68,7 @@ function SimpleWebRTC(opts) {
         for (var i = 1, ii = arguments.length; i < ii; i++) {
             var obj = arguments[i];
             var keys = Object.keys(obj);
-            for(var j = 0; j < keys.length; j++){
+            for (var j = 0; j < keys.length; j++) {
                 dst[keys[j]] = obj[keys[j]];
             }
         }
@@ -76,11 +76,11 @@ function SimpleWebRTC(opts) {
     }
     // set our config from options
     for (item in options) {
-        if(item != 'emitEndpoints' && item != 'handlers')
+        if (item != 'emitEndpoints' && item != 'handlers')
             this.config[item] = options[item];
     }
-    extend(this.config.emitEndpoints,options.emitEndpoints);
-    extend(this.config.handlers,options.handlers);
+    extend(this.config.emitEndpoints, options.emitEndpoints || {});
+    extend(this.config.handlers, options.handlers || {});
 
     // attach detected support for convenience
     this.capabilities = webrtcSupport;
@@ -90,7 +90,7 @@ function SimpleWebRTC(opts) {
 
     // our socket.io connection
     connection = this.connection = this.config.socket;
-    if(!connection){
+    if (!connection) {
         throw new Error('A existing socket must be used');
     }
 
@@ -275,8 +275,8 @@ SimpleWebRTC.prototype.leaveRoom = function () {
 SimpleWebRTC.prototype.disconnect = function () {
     var handlers = this.config.handlers;
     var keys = Object.keys(handlers);
-    for(var i = 0; i < keys.length; i++){
-        this.connection.removeAllListeners(handlers[keys[i]]);    
+    for (var i = 0; i < keys.length; i++) {
+        this.connection.removeAllListeners(handlers[keys[i]]);
     }
 };
 

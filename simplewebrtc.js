@@ -77,8 +77,8 @@ function SimpleWebRTC(opts) {
         if (item != 'emitEndpoints' && item != 'handlers')
             this.config[item] = options[item];
     }
-    extend(this.config.emitEndpoints, options.emitEndpoints);
-    extend(this.config.handlers, options.handlers);
+    extend(this.config.emitEndpoints, options.emitEndpoints || {});
+    extend(this.config.handlers, options.handlers || {});
 
     // attach detected support for convenience
     this.capabilities = webrtcSupport;
