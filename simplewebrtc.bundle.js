@@ -93,10 +93,14 @@ function SimpleWebRTC(opts) {
     if (!connection) {
         throw new Error('A existing socket must be used');
     }
-
-    self.emit('connectionReady', connection.socket.sessionid);
-    self.sessionReady = true;
-    self.testReadiness();
+    
+    //Run async..
+    setTimeout(function () {
+        self.emit('connectionReady', connection.socket.sessionid);
+        self.sessionReady = true;
+        self.testReadiness();
+    });
+    
 
     connection.on(config.handlers.message, function (message) {
         var peers = self.webrtc.getPeers(message.from, message.roomType);
