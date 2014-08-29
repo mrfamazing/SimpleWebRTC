@@ -174,12 +174,12 @@ function SimpleWebRTC(opts) {
     connection.on(this.config.handlers.stunservers, function (args) {
         // resets/overrides the config
         self.webrtc.config.peerConnectionConfig.iceServers = args;
-        self.emit(this.config.handlers.stunservers, args);
+        self.emit(self.config.handlers.stunservers, args);
     });
     connection.on(this.config.handlers.turnservers, function (args) {
         // appends to the config
         self.webrtc.config.peerConnectionConfig.iceServers = self.webrtc.config.peerConnectionConfig.iceServers.concat(args);
-        self.emit(this.config.handlers.turnservers, args);
+        self.emit(self.config.handlers.turnservers, args);
     });
 
     this.webrtc.on('iceFailed', function (peer) {
