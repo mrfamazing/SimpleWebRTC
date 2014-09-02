@@ -11,7 +11,6 @@ function SimpleWebRTC(opts) {
     var self = this;
     var options = opts || {};
     var config = this.config = {
-            url: 'http://signaling.simplewebrtc.com:8888',
             socket: null,
             handlers: {
                 message: 'message',
@@ -288,7 +287,7 @@ SimpleWebRTC.prototype.handlePeerStreamAdded = function (peer) {
     var self = this;
     var container = this.getRemoteVideoContainer();
     var video = attachMediaStream(peer.stream);
-
+    console.log('video stream added:', video);
     // store video element as part of peer for easy removal
     peer.videoEl = video;
     video.id = this.getDomId(peer);
